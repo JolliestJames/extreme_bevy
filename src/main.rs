@@ -9,6 +9,9 @@ mod input;
 
 type Config = bevy_ggrs::GgrsConfig<u8, PeerId>;
 
+const MAP_SIZE: u32 = 41;
+const GRID_WIDTH: f32 = 0.05;
+
 fn main() {
     App::new()
         .add_plugins((
@@ -35,13 +38,45 @@ fn setup(mut commands: Commands) {
     let mut camera_bundle = Camera2dBundle::default();
     camera_bundle.projection.scaling_mode = ScalingMode::FixedVertical(10.);
     commands.spawn(camera_bundle);
+
+    for i in 0..=MAP_SIZE {
+        commands.spawn(SpriteBundle {
+            transform: Transform::from_translation(Vec3::new(
+               0.,
+               i as f32 - MAP_SIZE as f32 / 2.,
+               0.,
+            )),
+            sprite: Sprite {
+                color: Color::rgb(0.27, 0.27, 0.27),
+                custom_size: Some(Vec2::new(MAP_SIZE as f32, GRID_WIDTH)),
+                ..default()
+            },
+            ..default()
+        });
+    }
+
+    for i in 0..=MAP_SIZE {
+        commands.spawn(SpriteBundle {
+            transform: Transform::from_translation(Vec3::new(
+               i as f32 - MAP_SIZE as f32 / 2.,
+               0.,
+               0.,
+            )),
+            sprite: Sprite {
+                color: Color::rgb(0.27, 0.27, 0.27),
+                custom_size: Some(Vec2::new(GRID_WIDTH, MAP_SIZE as f32)),
+                ..default()
+            },
+            ..default()
+        });
+    }
 }
 
 fn spawn_players(mut commands: Commands) {
     commands.spawn((
         Player { handle: 0 },
         SpriteBundle {
-            transform: Transform::from_translation(Vec3::new(-2., 0., 0.)),
+            transform: Transform::from_translation(Vec3::new(-2., 0., 100.)),
             sprite: Sprite {
                 color: Color::rgb(0., 0.47, 1.),
                 custom_size: Some(Vec2::new(1., 1.)),
@@ -55,7 +90,7 @@ fn spawn_players(mut commands: Commands) {
     commands.spawn((
         Player { handle: 1 },
         SpriteBundle {
-            transform: Transform::from_translation(Vec3::new(2., 0., 0.)),
+            transform: Transform::from_translation(Vec3::new(2., 0., 100.)),
             sprite: Sprite {
                 color: Color::rgb(0., 0.4, 0.),
                 custom_size: Some(Vec2::new(1., 1.)),
@@ -83,7 +118,13 @@ fn move_players(
 
         let move_speed = 7.;
         let move_delta = direction * move_speed * time.delta_seconds();
-        transform.translation += move_delta.extend(0.);
+
+        let old_pos = transform.translation.xy();
+        let limit = Vec2::splat(MAP_SIZE as f32 / 2. - 0.5);
+        let new_pos = (old_pos + move_delta).clamp(-limit, limit);
+
+        transform.translation.x = new_pos.x;
+        transform.translation.y = new_pos.y;
     }
 }
 
