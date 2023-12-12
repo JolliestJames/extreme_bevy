@@ -117,6 +117,7 @@ fn spawn_players(mut commands: Commands) {
     commands.spawn((
         Player { handle: 0 },
         BulletReady(true),
+        MoveDir(-Vec2::X),
         SpriteBundle {
             transform: Transform::from_translation(Vec3::new(-2., 0., 100.)),
             sprite: Sprite {
@@ -132,6 +133,7 @@ fn spawn_players(mut commands: Commands) {
     commands.spawn((
         Player { handle: 1 },
         BulletReady(true),
+        MoveDir(Vec2::X),
         SpriteBundle {
             transform: Transform::from_translation(Vec3::new(2., 0., 100.)),
             sprite: Sprite {
@@ -146,11 +148,11 @@ fn spawn_players(mut commands: Commands) {
 }
 
 fn move_players(
-    mut players: Query<(&mut Transform, &Player)>,
     inputs: Res<PlayerInputs<Config>>,
+    mut players: Query<(&mut Transform, &mut MoveDir, &Player)>,
     time: Res<Time>,
 ) {
-    for (mut transform, player) in &mut players {
+    for (mut transform, mut move_dir, player) in &mut players {
         let (input, _) = inputs[player.handle];
 
         let direction = calculate_direction(input);
@@ -158,6 +160,8 @@ fn move_players(
         if direction == Vec2::ZERO {
             continue;
         }
+
+        move_dir.0 = direction;
 
         let move_speed = 7.;
         let move_delta = direction * move_speed * time.delta_seconds();
@@ -247,12 +251,13 @@ fn fire_bullets(
         let (input, _) = inputs[player.handle];
 
         if fire(input) && bullet_ready.0 {
-            commands.
-                spawn((
+            commands
+                .spawn((
                     Bullet,
                     *move_dir,
                     SpriteBundle {
-                        transform: Transform::from_translation(transform.translation),
+                        transform: Transform::from_translation(transform.translation)
+                            .with_rotation(Quat::from_rotation_arc_2d(Vec2::X, move_dir.0)),
                         texture: images.bullet.clone(),
                         sprite: Sprite {
                             custom_size: Some(Vec2::new(0.3, 0.1)),
@@ -281,10 +286,14 @@ fn reload_bullet(
     }
 }
 
-fn move_bullet(mut bullets: Query<&mut Transform, With<Bullet>>, time: Res<Time>) {
-    for mut transform in &mut bullets {
-        let speed = 1.;
-        transform.translation.x += speed * time.delta_seconds();
+fn move_bullet(
+    mut bullets: Query<(&mut Transform, &MoveDir), With<Bullet>>,
+    time: Res<Time>
+) {
+    for (mut transform, dir) in &mut bullets {
+        let speed = 20.;
+        let delta = dir.0 * speed * time.delta_seconds();
+        transform.translation += delta.extend(0.);
     }
 }
 

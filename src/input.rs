@@ -57,7 +57,7 @@ pub fn calculate_direction(input: u8) -> Vec2 {
         direction.x -= 1.;
     }
 
-    return direction;
+    return direction.normalize_or_zero();
 }
 
 pub fn fire(input: u8) -> bool {
