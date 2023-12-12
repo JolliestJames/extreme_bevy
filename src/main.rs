@@ -1,15 +1,11 @@
 use bevy::{prelude::*, render::camera::ScalingMode, tasks::IoTaskPool, utils::HashMap};
 use bevy_matchbox::{prelude::*, matchbox_socket::{WebRtcSocket, PeerId}};
 use bevy_ggrs::*;
+use input::*;
+use components::*;
 
-const INPUT_UP: u8 = 1 << 0;
-const INPUT_DOWN: u8 = 1 << 1;
-const INPUT_LEFT: u8 = 1 << 2;
-const INPUT_RIGHT: u8 = 1 << 3;
-const INPUT_FIRE: u8 = 1 << 4;
-
-#[derive(Component)]
-struct Player;
+mod components;
+mod input;
 
 type Config = bevy_ggrs::GgrsConfig<u8, PeerId>;
 
@@ -31,7 +27,7 @@ fn main() {
         .add_systems(Startup, (setup, spawn_players, start_matchbox_socket))
         .add_systems(Update, wait_for_players)
         .add_systems(ReadInputs, read_local_inputs)
-        .add_systems(GgrsSchedule, move_player)
+        .add_systems(GgrsSchedule, move_players)
         .run();
 }
 
@@ -43,7 +39,7 @@ fn setup(mut commands: Commands) {
 
 fn spawn_players(mut commands: Commands) {
     commands.spawn((
-        Player,
+        Player { handle: 0 },
         SpriteBundle {
             transform: Transform::from_translation(Vec3::new(-2., 0., 0.)),
             sprite: Sprite {
@@ -57,7 +53,7 @@ fn spawn_players(mut commands: Commands) {
     .add_rollback();
 
     commands.spawn((
-        Player,
+        Player { handle: 1 },
         SpriteBundle {
             transform: Transform::from_translation(Vec3::new(2., 0., 0.)),
             sprite: Sprite {
@@ -71,35 +67,23 @@ fn spawn_players(mut commands: Commands) {
     .add_rollback();
 }
 
-fn move_player(
+fn move_players(
+    mut players: Query<(&mut Transform, &Player)>,
     inputs: Res<PlayerInputs<Config>>,
-    mut players: Query<&mut Transform, With<Player>>,
+    time: Res<Time>,
 ) {
-    let mut direction = Vec2::ZERO;
+    for (mut transform, player) in &mut players {
+        let (input, _) = inputs[player.handle];
 
-    let (input, _) = inputs[0];
+        let direction = calculate_direction(input);
 
-    if input & INPUT_UP != 0 {
-        direction.y += 1.;
-    }
-    if input & INPUT_DOWN != 0 {
-        direction.y -= 1.;
-    }
-    if input & INPUT_RIGHT != 0 {
-        direction.x += 1.;
-    }
-    if input & INPUT_LEFT != 0 {
-        direction.x -= 1.;
-    }
-    if direction == Vec2::ZERO {
-        return;
-    }
+        if direction == Vec2::ZERO {
+            continue;
+        }
 
-    let move_speed = 0.13;
-    let move_delta = (direction * move_speed).extend(0.);
-
-    for mut transform in &mut players {
-        transform.translation += move_delta;
+        let move_speed = 7.;
+        let move_delta = direction * move_speed * time.delta_seconds();
+        transform.translation += move_delta.extend(0.);
     }
 }
 
@@ -144,37 +128,5 @@ fn wait_for_players(
         .expect("failed to start session");
 
     commands.insert_resource(bevy_ggrs::Session::P2P(ggrs_session));
-}
-
-fn read_local_inputs(
-    mut commands: Commands,
-    keys: Res<Input<KeyCode>>,
-    local_players: Res<LocalPlayers>,
-) {
-    let mut local_inputs = HashMap::new();
-
-    for handle in &local_players.0 {
-        let mut input = 0u8;
-
-        if keys.any_pressed([KeyCode::Up, KeyCode::W]) {
-            input |= INPUT_UP;
-        }
-        if keys.any_pressed([KeyCode::Down, KeyCode::S]) {
-            input |= INPUT_DOWN;
-        }
-        if keys.any_pressed([KeyCode::Left, KeyCode::A]) {
-            input |= INPUT_LEFT;
-        }
-        if keys.any_pressed([KeyCode::Right, KeyCode::D]) {
-            input |= INPUT_RIGHT;
-        }
-        if keys.any_pressed([KeyCode::Space, KeyCode::Return]) {
-            input |= INPUT_FIRE;
-        }
-
-        local_inputs.insert(*handle, input);
-    }
-
-    commands.insert_resource(LocalInputs::<Config>(local_inputs));
 }
 
