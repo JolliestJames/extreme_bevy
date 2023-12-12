@@ -12,6 +12,8 @@ type Config = bevy_ggrs::GgrsConfig<u8, PeerId>;
 
 const MAP_SIZE: u32 = 41;
 const GRID_WIDTH: f32 = 0.05;
+const PLAYER_RADIUS: f32 = 0.5;
+const BULLET_RADIUS: f32 = 0.025;
 
 #[derive(AssetCollection, Resource)]
 struct ImageAssets {
@@ -70,6 +72,7 @@ fn main() {
                 reload_bullet,
                 fire_bullets.after(move_players).after(reload_bullet),
                 move_bullet.after(fire_bullets),
+                kill_players.after(move_bullet).after(move_players),
             ),
         )
         .run();
@@ -251,12 +254,15 @@ fn fire_bullets(
         let (input, _) = inputs[player.handle];
 
         if fire(input) && bullet_ready.0 {
+            let player_pos = transform.translation.xy();
+            let pos = player_pos + move_dir.0 * PLAYER_RADIUS + BULLET_RADIUS;
+
             commands
                 .spawn((
                     Bullet,
                     *move_dir,
                     SpriteBundle {
-                        transform: Transform::from_translation(transform.translation)
+                        transform: Transform::from_translation(pos.extend(200.))
                             .with_rotation(Quat::from_rotation_arc_2d(Vec2::X, move_dir.0)),
                         texture: images.bullet.clone(),
                         sprite: Sprite {
@@ -294,6 +300,24 @@ fn move_bullet(
         let speed = 20.;
         let delta = dir.0 * speed * time.delta_seconds();
         transform.translation += delta.extend(0.);
+    }
+}
+
+fn kill_players(
+    mut commands: Commands,
+    players: Query<(Entity, &Transform), (With<Player>, Without<Bullet>)>,
+    bullets: Query<&Transform, With<Bullet>>,
+) {
+    for (player, player_transform) in &players {
+        for bullet_transform in &bullets {
+            let distance = Vec2:: distance(
+                player_transform.translation.xy(),
+                bullet_transform.translation.xy(),
+            );
+            if distance < PLAYER_RADIUS + BULLET_RADIUS {
+                commands.entity(player).despawn_recursive();
+            }
+        }
     }
 }
 
