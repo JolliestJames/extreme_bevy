@@ -1,7 +1,10 @@
 use crate::Config;
 use bevy::{prelude::*, render::camera::ScalingMode, tasks::IoTaskPool, utils::HashMap};
-use bevy_matchbox::{prelude::*, matchbox_socket::{WebRtcSocket, PeerId}};
 use bevy_ggrs::*;
+use bevy_matchbox::{
+    matchbox_socket::{PeerId, WebRtcSocket},
+    prelude::*,
+};
 
 const INPUT_UP: u8 = 1 << 0;
 const INPUT_DOWN: u8 = 1 << 1;
@@ -63,4 +66,3 @@ pub fn calculate_direction(input: u8) -> Vec2 {
 pub fn fire(input: u8) -> bool {
     input & INPUT_FIRE != 0
 }
-
