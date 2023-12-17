@@ -13,3 +13,7 @@ pub struct Bullet;
 
 #[derive(Component, Clone, Copy)]
 pub struct MoveDir(pub Vec2);
+
+pub fn checksum_transform(transform: &Transform) -> u64 {
+    //todo: produce u64 based on value of transform
+}
