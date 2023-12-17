@@ -1,3 +1,8 @@
+mod args;
+mod components;
+mod input;
+
+use args::Args;
 use bevy::{prelude::*, render::camera::ScalingMode, tasks::IoTaskPool, utils::HashMap};
 use bevy_asset_loader::prelude::*;
 use bevy_ggrs::*;
@@ -5,11 +10,9 @@ use bevy_matchbox::{
     matchbox_socket::{PeerId, WebRtcSocket},
     prelude::*,
 };
+use clap::Parser;
 use components::*;
 use input::*;
-
-mod components;
-mod input;
 
 type Config = bevy_ggrs::GgrsConfig<u8, PeerId>;
 
@@ -33,7 +36,11 @@ enum GameState {
 }
 
 fn main() {
+    let args = Args::parse();
+    eprintln!("{args:?}");
+
     App::new()
+        .insert_resource(args)
         .add_state::<GameState>()
         .add_loading_state(
             LoadingState::new(GameState::AssetLoading).continue_to_state(GameState::Matchmaking),
@@ -51,18 +58,23 @@ fn main() {
             GgrsPlugin::<Config>::default(),
         ))
         .rollback_component_with_clone::<Transform>()
-        .rollback_component_with_clone::<BulletReady>()
-        //.register_rollback_component::<MoveDir>()
+        .rollback_component_with_copy::<BulletReady>()
+        .rollback_component_with_copy::<MoveDir>()
+        .checksum_component::<Transform>(checksum_transform)
         .insert_resource(ClearColor(Color::rgb(0.53, 0.53, 0.53)))
         .add_systems(
             OnEnter(GameState::Matchmaking),
-            (setup, start_matchbox_socket),
+            (setup, start_matchbox_socket.run_if(p2p_mode)),
         )
         .add_systems(OnEnter(GameState::InGame), spawn_players)
         .add_systems(
             Update,
             (
-                wait_for_players.run_if(in_state(GameState::Matchmaking)),
+                (
+                    wait_for_players.run_if(p2p_mode),
+                    start_synctest_session.run_if(synctest_mode),
+                )
+                    .run_if(in_state(GameState::Matchmaking)),
                 camera_follow.run_if(in_state(GameState::InGame)),
             ),
         )
@@ -321,3 +333,32 @@ fn kill_players(
         }
     }
 }
+
+fn synctest_mode(args: Res<Args>) -> bool {
+    args.synctest
+}
+
+fn p2p_mode(args: Res<Args>) -> bool {
+    !args.synctest
+}
+
+fn start_synctest_session(mut commands: Commands, mut next_state: ResMut<NextState<GameState>>) {
+    info!("Starting synctest session");
+    let num_players = 2;
+
+    let mut session_builder = ggrs::SessionBuilder::<Config>::new().with_num_players(num_players);
+
+    for i in 0..num_players {
+        session_builder = session_builder
+            .add_player(ggrs::PlayerType::Local, i)
+            .expect("failed to add player");
+    }
+
+    let ggrs_session = session_builder
+        .start_synctest_session()
+        .expect("failed to start session");
+
+    commands.insert_resource(bevy_ggrs::Session::SyncTest(ggrs_session));
+    next_state.set(GameState::InGame);
+}
+
