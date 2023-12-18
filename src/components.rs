@@ -1,4 +1,7 @@
+use std::hash::BuildHasher;
+use std::hash::{Hash, Hasher};
 use bevy::prelude::*;
+use bevy::utils::FixedState;
 
 #[derive(Component)]
 pub struct Player {
@@ -15,5 +18,21 @@ pub struct Bullet;
 pub struct MoveDir(pub Vec2);
 
 pub fn checksum_transform(transform: &Transform) -> u64 {
-    //todo: produce u64 based on value of transform
+    let mut hasher = FixedState.build_hasher();
+
+    assert!(
+        transform.translation.is_finite() && transform.rotation.is_finite(),
+        "Hashing is not stable for NaN f32 values."
+    );
+
+    transform.translation.x.to_bits().hash(&mut hasher);
+    transform.translation.y.to_bits().hash(&mut hasher);
+    transform.translation.z.to_bits().hash(&mut hasher);
+
+    transform.rotation.x.to_bits().hash(&mut hasher);
+    transform.rotation.y.to_bits().hash(&mut hasher);
+    transform.rotation.z.to_bits().hash(&mut hasher);
+    transform.rotation.w.to_bits().hash(&mut hasher);
+
+    hasher.finish()
 }
