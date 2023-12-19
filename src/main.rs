@@ -38,6 +38,9 @@ impl Default for RoundEndTimer {
     }
 }
 
+#[derive(Resource, Default, Clone, Copy, Debug)]
+struct Scores(u32, u32);
+
 #[derive(States, Clone, Eq, PartialEq, Debug, Hash, Default)]
 enum GameState {
     #[default]
@@ -77,6 +80,7 @@ fn main() {
             GgrsPlugin::<Config>::default(),
         ))
         .rollback_resource_with_clone::<RoundEndTimer>()
+        .rollback_resource_with_clone::<Scores>()
         .rollback_component_with_clone::<Transform>()
         .rollback_component_with_clone::<Sprite>()
         .rollback_component_with_clone::<GlobalTransform>()
@@ -89,6 +93,7 @@ fn main() {
         .rollback_component_with_copy::<Player>()
         .checksum_component::<Transform>(checksum_transform)
         .init_resource::<RoundEndTimer>()
+        .init_resource::<Scores>()
         .insert_resource(ClearColor(Color::rgb(0.53, 0.53, 0.53)))
         .add_systems(
             OnEnter(GameState::Matchmaking),
@@ -374,19 +379,28 @@ fn move_bullet(mut bullets: Query<(&mut Transform, &MoveDir), With<Bullet>>, tim
 
 fn kill_players(
     mut commands: Commands,
-    players: Query<(Entity, &Transform), (With<Player>, Without<Bullet>)>,
+    players: Query<(Entity, &Transform, &Player), Without<Bullet>>,
     bullets: Query<&Transform, With<Bullet>>,
     mut next_state: ResMut<NextState<RollbackState>>,
+    mut scores: ResMut<Scores>,
 ) {
-    for (player, player_transform) in &players {
+    for (player_entity, player_transform, player) in &players {
         for bullet_transform in &bullets {
             let distance = Vec2::distance(
                 player_transform.translation.xy(),
                 bullet_transform.translation.xy(),
             );
             if distance < PLAYER_RADIUS + BULLET_RADIUS {
-                commands.entity(player).despawn_recursive();
+                commands.entity(player_entity).despawn_recursive();
                 next_state.set(RollbackState::RoundEnd);
+
+                if player.handle == 0 {
+                    scores.1 += 1;
+                } else {
+                    scores.0 += 1;
+                }
+
+                info!("player died: {scores:?}")
             }
         }
     }
