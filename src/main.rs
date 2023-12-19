@@ -108,7 +108,9 @@ fn main() {
                 fire_bullets.after(move_players).after(reload_bullet),
                 move_bullet.after(fire_bullets),
                 kill_players.after(move_bullet).after(move_players),
-            ),
+            )
+                .after(apply_state_transition::<RollbackState>)
+                .run_if(in_state(RollbackState::InRound)),
         )
         .run();
 }
