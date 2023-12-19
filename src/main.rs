@@ -11,6 +11,7 @@ use bevy_matchbox::{
     matchbox_socket::PeerId,
     prelude::*,
 };
+use bevy_roll_safe::prelude::*;
 use clap::Parser;
 use components::*;
 use input::*;
@@ -36,6 +37,15 @@ enum GameState {
     InGame,
 }
 
+#[derive(States, Clone, Eq, PartialEq, Debug, Hash, Default, Reflect)]
+enum RollbackState {
+    #[default]
+    // Characters are alive and shooting at each other
+    InRound,
+    // Transition to next round when a character dies
+    RoundEnd
+}
+
 fn main() {
     let args = Args::parse();
     eprintln!("{args:?}");
@@ -43,6 +53,7 @@ fn main() {
     App::new()
         .insert_resource(args)
         .add_state::<GameState>()
+        .add_roll_state::<RollbackState>(GgrsSchedule)
         .add_loading_state(
             LoadingState::new(GameState::AssetLoading).continue_to_state(GameState::Matchmaking),
         )
