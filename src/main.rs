@@ -3,11 +3,12 @@ mod components;
 mod input;
 
 use args::Args;
-use bevy::{prelude::*, render::camera::ScalingMode, tasks::IoTaskPool, utils::HashMap};
+use crate::ggrs::DesyncDetection;
+use bevy::{prelude::*, render::camera::ScalingMode};
 use bevy_asset_loader::prelude::*;
-use bevy_ggrs::*;
+use bevy_ggrs::{*, prelude::GgrsEvent};
 use bevy_matchbox::{
-    matchbox_socket::{PeerId, WebRtcSocket},
+    matchbox_socket::PeerId,
     prelude::*,
 };
 use clap::Parser;
@@ -82,7 +83,10 @@ fn main() {
                     start_synctest_session.run_if(synctest_mode),
                 )
                     .run_if(in_state(GameState::Matchmaking)),
-                camera_follow.run_if(in_state(GameState::InGame)),
+                (
+                    camera_follow,
+                    handle_ggrs_events
+                ).run_if(in_state(GameState::InGame)),
             ),
         )
         .add_systems(ReadInputs, read_local_inputs)
@@ -209,9 +213,9 @@ fn start_matchbox_socket(mut commands: Commands) {
 
 fn wait_for_players(
     mut commands: Commands,
-    //mut socket: ResMut<Option<WebRtcSocket>>,
     mut socket: ResMut<MatchboxSocket<SingleChannel>>,
     mut next_state: ResMut<NextState<GameState>>,
+    args: Res<Args>,
 ) {
     if socket.get_channel(0).is_err() {
         return;
@@ -229,7 +233,8 @@ fn wait_for_players(
 
     let mut session_builder = ggrs::SessionBuilder::<Config>::new()
         .with_num_players(num_players)
-        .with_input_delay(2);
+        .with_desync_detection_mode(DesyncDetection::On { interval: 1})
+        .with_input_delay(args.input_delay);
 
     for (i, player) in players.into_iter().enumerate() {
         session_builder = session_builder
@@ -369,3 +374,26 @@ fn start_synctest_session(mut commands: Commands, mut next_state: ResMut<NextSta
     next_state.set(GameState::InGame);
 }
 
+fn handle_ggrs_events(mut session: ResMut<Session<Config>>) {
+    match session.as_mut() {
+        Session::P2P(s) => {
+            for event in s.events() {
+                match event {
+                    GgrsEvent::Disconnected { .. } | GgrsEvent::NetworkInterrupted { .. } => {
+                        warn!("GGRS event: {event:?}")
+                    }
+                    GgrsEvent::DesyncDetected {
+                        local_checksum,
+                        remote_checksum,
+                        frame,
+                        ..
+                    } => {
+                        error!("Desync on frame {frame}. Local checksum: {local_checksum:X}, remote checksum: {remote_checksum:X}");
+                    }
+                    _ => info!("GGRS event: {event:?}"),
+                }
+            }
+        }
+        _ => {}
+    }
+}

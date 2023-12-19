@@ -1,10 +1,6 @@
 use crate::Config;
-use bevy::{prelude::*, render::camera::ScalingMode, tasks::IoTaskPool, utils::HashMap};
+use bevy::{prelude::*, utils::HashMap};
 use bevy_ggrs::*;
-use bevy_matchbox::{
-    matchbox_socket::{PeerId, WebRtcSocket},
-    prelude::*,
-};
 
 const INPUT_UP: u8 = 1 << 0;
 const INPUT_DOWN: u8 = 1 << 1;
