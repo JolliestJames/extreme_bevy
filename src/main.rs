@@ -62,7 +62,6 @@ fn main() {
     App::new()
         .insert_resource(args)
         .add_state::<GameState>()
-        .add_roll_state::<RollbackState>(GgrsSchedule)
         .add_loading_state(
             LoadingState::new(GameState::AssetLoading).continue_to_state(GameState::Matchmaking),
         )
@@ -77,7 +76,6 @@ fn main() {
             }),
             GgrsPlugin::<Config>::default(),
         ))
-        .add_ggrs_state::<RollbackState>()
         .rollback_resource_with_clone::<RoundEndTimer>()
         .rollback_component_with_clone::<Transform>()
         .rollback_component_with_clone::<Sprite>()
@@ -96,7 +94,6 @@ fn main() {
             OnEnter(GameState::Matchmaking),
             (setup, start_matchbox_socket.run_if(p2p_mode)),
         )
-        .add_systems(OnEnter(GameState::InGame), spawn_players)
         .add_systems(
             Update,
             (
@@ -112,6 +109,8 @@ fn main() {
             ),
         )
         .add_systems(ReadInputs, read_local_inputs)
+        .add_roll_state::<RollbackState>(GgrsSchedule)
+        .add_systems(OnEnter(RollbackState::InRound), spawn_players)
         .add_systems(
             GgrsSchedule,
             (
@@ -172,7 +171,21 @@ fn setup(mut commands: Commands) {
     }
 }
 
-fn spawn_players(mut commands: Commands) {
+fn spawn_players(
+    mut commands: Commands,
+    players: Query<Entity, With<Player>>,
+    bullets: Query<Entity, With<Bullet>>,
+) {
+    info!("Spawning players");
+
+    for player in &players {
+        commands.entity(player).despawn_recursive();
+    }
+
+    for bullet in &bullets {
+        commands.entity(bullet).despawn_recursive();
+    }
+
     commands
         .spawn((
             Player { handle: 0 },
