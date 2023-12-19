@@ -344,6 +344,7 @@ fn kill_players(
     mut commands: Commands,
     players: Query<(Entity, &Transform), (With<Player>, Without<Bullet>)>,
     bullets: Query<&Transform, With<Bullet>>,
+    mut next_state: ResMut<NextState<RollbackState>>,
 ) {
     for (player, player_transform) in &players {
         for bullet_transform in &bullets {
@@ -353,6 +354,7 @@ fn kill_players(
             );
             if distance < PLAYER_RADIUS + BULLET_RADIUS {
                 commands.entity(player).despawn_recursive();
+                next_state.set(RollbackState::RoundEnd);
             }
         }
     }
