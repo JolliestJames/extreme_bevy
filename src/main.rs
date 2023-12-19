@@ -29,6 +29,15 @@ struct ImageAssets {
     bullet: Handle<Image>,
 }
 
+#[derive(Resource, Clone, Deref, DerefMut)]
+struct RoundEndTimer(Timer);
+
+impl Default for RoundEndTimer {
+    fn default() -> Self {
+        RoundEndTimer(Timer::from_seconds(1.0, TimerMode::Once))
+    }
+}
+
 #[derive(States, Clone, Eq, PartialEq, Debug, Hash, Default)]
 enum GameState {
     #[default]
@@ -68,6 +77,8 @@ fn main() {
             }),
             GgrsPlugin::<Config>::default(),
         ))
+        .add_ggrs_state::<RollbackState>()
+        .rollback_resource_with_clone::<RoundEndTimer>()
         .rollback_component_with_clone::<Transform>()
         .rollback_component_with_clone::<Sprite>()
         .rollback_component_with_clone::<GlobalTransform>()
@@ -79,6 +90,7 @@ fn main() {
         .rollback_component_with_copy::<MoveDir>()
         .rollback_component_with_copy::<Player>()
         .checksum_component::<Transform>(checksum_transform)
+        .init_resource::<RoundEndTimer>()
         .insert_resource(ClearColor(Color::rgb(0.53, 0.53, 0.53)))
         .add_systems(
             OnEnter(GameState::Matchmaking),
@@ -111,6 +123,13 @@ fn main() {
             )
                 .after(apply_state_transition::<RollbackState>)
                 .run_if(in_state(RollbackState::InRound)),
+        )
+        .add_systems(
+            GgrsSchedule,
+            round_end_timeout
+                .ambiguous_with(kill_players)
+                .run_if(in_state(RollbackState::RoundEnd))
+                .after(apply_state_transition::<RollbackState>),
         )
         .run();
 }
@@ -409,5 +428,17 @@ fn handle_ggrs_events(mut session: ResMut<Session<Config>>) {
             }
         }
         _ => {}
+    }
+}
+
+fn round_end_timeout(
+    mut timer: ResMut<RoundEndTimer>,
+    mut state: ResMut<NextState<RollbackState>>,
+    time: Res<Time>,
+) {
+    timer.tick(time.delta());
+
+    if timer.just_finished() {
+        state.set(RollbackState::InRound);
     }
 }
